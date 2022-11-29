@@ -50,17 +50,13 @@ class UnoptimizedHotelService extends AbstractHotelService {
    */
   protected function getMeta ( int $userId, string $key ) : ?string {
     $db = $this->getDB();
-    $stmt = $db->prepare( "SELECT * FROM wp_usermeta" );
-    $stmt->execute();
-    
+    // SELECT * FROM wp_usermeta
+    $stmt = $db->prepare( "SELECT * FROM wp_usermeta WHERE user_id = :userId AND meta_key = :key" );
+    $stmt->execute(['userId'=>$userId, 'key'=>$key]);
+
     $result = $stmt->fetchAll( PDO::FETCH_ASSOC );
-    $output = null;
-    foreach ( $result as $row ) {
-      if ( $row['user_id'] === $userId && $row['meta_key'] === $key )
-        $output = $row['meta_value'];
-    }
-    
-    return $output;
+
+    return $result[0]['meta_value'];
   }
   
   
@@ -72,6 +68,45 @@ class UnoptimizedHotelService extends AbstractHotelService {
    * @return array
    * @noinspection PhpUnnecessaryLocalVariableInspection
    */
+//SELECT
+//add1.meta_value AS address_1,
+//add2.meta_value AS address_2,
+//add_c.meta_value AS address_city,
+//add_z.meta_value AS address_zip,
+//add_co.meta_value AS address_country,
+//geo_lat.meta_value AS geo_lat,
+//geo_lng.meta_value AS geo_lng,
+//coverImg.meta_value AS coverImage,
+//phone.meta_value AS phone
+//
+//FROM wp_users AS User
+//
+//INNER JOIN wp_usermeta AS add1
+//ON add1.user_id = User.ID AND add1.meta_key = 'address_1'
+//
+//INNER JOIN wp_usermeta AS add2
+//ON add2.user_id = User.ID AND add1.meta_key = 'address_2'
+//
+//INNER JOIN wp_usermeta AS add_c
+//ON add_c.user_id = User.ID AND add1.meta_key = 'address_city'
+//
+//INNER JOIN wp_usermeta AS add_z
+//ON add_z.user_id = User.ID AND add1.meta_key = 'address_zip'
+//
+//INNER JOIN wp_usermeta AS add_co
+//ON add_co.user_id = User.ID AND add1.meta_key = 'address_country'
+//
+//INNER JOIN wp_usermeta AS geo_lat
+//ON geo_lat.user_id = User.ID AND add1.meta_key = 'geo_lat'
+//
+//INNER JOIN wp_usermeta AS geo_lng
+//ON geo_lng.user_id = User.ID AND add1.meta_key = 'geo_lng'
+//
+//INNER JOIN wp_usermeta AS coverImg
+//ON coverImg.user_id = User.ID AND add1.meta_key = 'coverImage'
+//
+//INNER JOIN wp_usermeta AS phone
+//ON phone.user_id = User.ID AND add1.meta_key = 'phone';
   protected function getMetas ( HotelEntity $hotel ) : array {
       $timer = Timers::getInstance();
       $timerId = $timer->startTimer('getMetas');
@@ -103,14 +138,13 @@ class UnoptimizedHotelService extends AbstractHotelService {
    */
   protected function getReviews ( HotelEntity $hotel ) : array {
     // Récupère tous les avis d'un hotel
-    $stmt = $this->getDB()->prepare( "SELECT ID,post_author,post_date,post_date_gmt,post_content,post_title,post_excerpt, post_status,comment_status,ping_status,post_password,post_name,to_ping,pinged,post_modified,post_modified_gmt,post_content_filtered,post_parent,guid,menu_order,post_type,post_mime_type,comment_count,meta_id, post_id, meta_key, meta_value FROM wp_posts JOIN wp_postmeta ON wp_posts.ID = wp_postmeta.post_id WHERE wp_posts.post_author = 1 AND  meta_key = 'rating' AND post_type = 'review';" );
+      // SELECT * FROM wp_posts, wp_postmeta WHERE wp_posts.post_author = :hotelId AND wp_posts.ID = wp_postmeta.post_id AND meta_key = 'rating' AND post_type = 'review'
+    $stmt = $this->getDB()->prepare( "SELECT meta_value FROM wp_posts JOIN wp_postmeta ON wp_posts.ID = wp_postmeta.post_id WHERE wp_posts.post_author = :hotelId AND meta_key = 'rating' AND post_type = 'review'" );
     $stmt->execute( [ 'hotelId' => $hotel->getId() ] );
     $reviews = $stmt->fetchAll( PDO::FETCH_ASSOC );
-    
-    // Sur les lignes, ne garde que la note de l'avis
-    $reviews = array_map( function ( $review ) {
-      return intval( $review['meta_value'] );
-    }, $reviews );
+
+    $reviews = array_column($reviews,"meta_value");
+    $reviews = array_map('intval', $reviews);
     
     $output = [
       'rating' => round( array_sum( $reviews ) / count( $reviews ) ),
@@ -143,7 +177,7 @@ class UnoptimizedHotelService extends AbstractHotelService {
       $timer = Timers::getInstance();
       $timerId = $timer->startTimer('getCheapestRoom');
     // On charge toutes les chambres de l'hôtel
-    $stmt = $this->getDB()->prepare( "SELECT ID,post_author,post_date,post_date_gmt,post_content,post_title,post_excerpt, post_status,comment_status,ping_status,post_password,post_name,to_ping,pinged,post_modified,post_modified_gmt,post_content_filtered,post_parent,guid,menu_order,post_type,post_mime_type,comment_count FROM wp_posts WHERE post_author = 1 AND post_type = 'room';" );
+    $stmt = $this->getDB()->prepare( "SELECT * FROM wp_posts WHERE post_author = :hotelId AND post_type = 'room';" );
     $stmt->execute( [ 'hotelId' => $hotel->getId() ] );
     
     /**
@@ -157,31 +191,39 @@ class UnoptimizedHotelService extends AbstractHotelService {
     
     // On exclut les chambres qui ne correspondent pas aux critères
     $filteredRooms = [];
-    
-    foreach ( $rooms as $room ) {
-      if ( isset( $args['surface']['min'] ) && $room->getSurface() < $args['surface']['min'] )
-        continue;
-      
-      if ( isset( $args['surface']['max'] ) && $room->getSurface() > $args['surface']['max'] )
-        continue;
-      
-      if ( isset( $args['price']['min'] ) && intval( $room->getPrice() ) < $args['price']['min'] )
-        continue;
-      
-      if ( isset( $args['price']['max'] ) && intval( $room->getPrice() ) > $args['price']['max'] )
-        continue;
-      
-      if ( isset( $args['rooms'] ) && $room->getBedRoomsCount() < $args['rooms'] )
-        continue;
-      
-      if ( isset( $args['bathRooms'] ) && $room->getBathRoomsCount() < $args['bathRooms'] )
-        continue;
-      
-      if ( isset( $args['types'] ) && ! empty( $args['types'] ) && ! in_array( $room->getType(), $args['types'] ) )
-        continue;
-      
-      $filteredRooms[] = $room;
-    }
+
+    //SELECT * FROM wp_posts WHERE post_author = :hotelId AND post_type = 'room'
+    $query = "SELECT post.ID as ID, price.meta_value AS price, room.meta_value AS room, bathroom.meta_value AS bathroom, surface.meta_value AS surface, type.meta_value AS type FROM wp_posts AS post INNER JOIN wp_postmeta AS price ON price.post_id = post.ID AND price.meta_key = 'price' INNER JOIN wp_postmeta AS room ON room.post_id = post.ID AND room.meta_key = 'bedrooms_count' INNER JOIN wp_postmeta AS bathroom ON bathroom.post_id = post.ID AND bathroom.meta_key = 'bathrooms_count' INNER JOIN wp_postmeta AS surface ON surface.post_id = post.ID AND surface.meta_key = 'surface' INNER JOIN wp_postmeta AS type ON type.post_id = post.ID AND type.meta_key = 'type'";
+
+    $whereClauses = [];
+
+    if ( isset( $args['surface']['min'] ))
+        $whereClauses[] = 'surface >= :surfaceMin';
+
+    if ( isset( $args['surface']['max'] ))
+        $whereClauses[] = 'surface <= :surfaceMax';
+
+    if ( isset( $args['price']['min'] ) )
+        $whereClauses[] = 'price >= :priceMin';
+
+    if ( isset( $args['price']['max'] ))
+        $whereClauses[] = 'price <= :priceMax';
+
+    if ( isset( $args['rooms'] ))
+        $whereClauses[] = 'room = :room';
+
+    if ( isset( $args['bathRooms'] ) )
+        $whereClauses[] = 'bathroom = :bathroom';
+
+    if ( isset( $args['types'] ) && ! empty( $args['types'] ) )
+        $whereClauses[] = 'type = :type';
+
+
+
+
+
+    $filteredRooms[] = $room;
+
     
     // Si aucune chambre ne correspond aux critères, alors on déclenche une exception pour retirer l'hôtel des résultats finaux de la méthode list().
     if ( count( $filteredRooms ) < 1 )
