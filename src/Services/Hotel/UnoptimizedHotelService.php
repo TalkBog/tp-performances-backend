@@ -103,7 +103,7 @@ class UnoptimizedHotelService extends AbstractHotelService {
    */
   protected function getReviews ( HotelEntity $hotel ) : array {
     // Récupère tous les avis d'un hotel
-    $stmt = $this->getDB()->prepare( "SELECT * FROM wp_posts, wp_postmeta WHERE wp_posts.post_author = :hotelId AND wp_posts.ID = wp_postmeta.post_id AND meta_key = 'rating' AND post_type = 'review'" );
+    $stmt = $this->getDB()->prepare( "SELECT ID,post_author,post_date,post_date_gmt,post_content,post_title,post_excerpt, post_status,comment_status,ping_status,post_password,post_name,to_ping,pinged,post_modified,post_modified_gmt,post_content_filtered,post_parent,guid,menu_order,post_type,post_mime_type,comment_count,meta_id, post_id, meta_key, meta_value FROM wp_posts JOIN wp_postmeta ON wp_posts.ID = wp_postmeta.post_id WHERE wp_posts.post_author = 1 AND  meta_key = 'rating' AND post_type = 'review';" );
     $stmt->execute( [ 'hotelId' => $hotel->getId() ] );
     $reviews = $stmt->fetchAll( PDO::FETCH_ASSOC );
     
@@ -143,7 +143,7 @@ class UnoptimizedHotelService extends AbstractHotelService {
       $timer = Timers::getInstance();
       $timerId = $timer->startTimer('getCheapestRoom');
     // On charge toutes les chambres de l'hôtel
-    $stmt = $this->getDB()->prepare( "SELECT * FROM wp_posts WHERE post_author = :hotelId AND post_type = 'room'" );
+    $stmt = $this->getDB()->prepare( "SELECT ID,post_author,post_date,post_date_gmt,post_content,post_title,post_excerpt, post_status,comment_status,ping_status,post_password,post_name,to_ping,pinged,post_modified,post_modified_gmt,post_content_filtered,post_parent,guid,menu_order,post_type,post_mime_type,comment_count FROM wp_posts WHERE post_author = 1 AND post_type = 'room';" );
     $stmt->execute( [ 'hotelId' => $hotel->getId() ] );
     
     /**
