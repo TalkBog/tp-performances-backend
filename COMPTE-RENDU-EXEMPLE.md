@@ -32,18 +32,18 @@ Vous pouvez utiliser ce [GSheets](https://docs.google.com/spreadsheets/d/13Hw27U
 - **Après** TEMPS
 
 
-#### Amélioration de la méthode `METHOD` et donc de la méthode `METHOD` :
+#### Amélioration de la méthode `getMeta` et donc de la méthode `getMetas` :
 
 - **Avant** TEMPS
 
 ```sql
--- REQ SQL DE BASE
+SELECT * FROM wp_usermeta
 ```
 
 - **Après** TEMPS
 
 ```sql
--- NOUVELLE REQ SQL
+SELECT * FROM wp_usermeta WHERE user_id = :userId AND meta_key = :key
 ```
 
 
@@ -53,10 +53,10 @@ Vous pouvez utiliser ce [GSheets](https://docs.google.com/spreadsheets/d/13Hw27U
 - **Avant** TEMPS
 
 ```sql
--- REQ SQL DE BASE
+SELECT * FROM wp_posts WHERE post_author = :hotelId AND post_type = 'room'
 ```
 
-- **Après** TEMPS
+- **Après** 12.50s
 
 ```sql
 -- NOUVELLE REQ SQL
