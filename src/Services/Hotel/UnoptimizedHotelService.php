@@ -174,110 +174,97 @@ class UnoptimizedHotelService extends AbstractHotelService {
    * @throws FilterException
    * @return RoomEntity
    */
-  protected function getCheapestRoom ( HotelEntity $hotel, array $args = [] ) : RoomEntity {
-      $timer = Timers::getInstance();
-      $timerId = $timer->startTimer('getCheapestRoom');
+    protected function getCheapestRoom ( HotelEntity $hotel, array $args = [] ) : RoomEntity {
+        $timer = Timers::getInstance();
+        $timerId = $timer->startTimer('getCheapestRoom');
+        //SELECT * FROM wp_posts WHERE post_author = :hotelId AND post_type = 'room'
+        $query = "SELECT
+    post.ID AS ID,
+    post.post_title AS title,
+    MIN(
+        CAST(price.meta_value AS FLOAT)
+    ) AS price,
+    coverImage.meta_value AS coverImage,
+    room.meta_value AS room,
+    bathroom.meta_value AS bathroom,
+    surface.meta_value AS surface,
+    TYPE.meta_value AS TYPE
+FROM
+    wp_posts AS post
+INNER JOIN wp_postmeta AS price
+ON
+    price.post_id = post.ID AND price.meta_key = 'price'
+INNER JOIN wp_postmeta AS coverImage
+ON
+    coverImage.post_id = post.ID AND coverImage.meta_key = 'coverImage'
+INNER JOIN wp_postmeta AS room
+ON
+    room.post_id = post.ID AND room.meta_key = 'bedrooms_count'
+INNER JOIN wp_postmeta AS bathroom
+ON
+    bathroom.post_id = post.ID AND bathroom.meta_key = 'bathrooms_count'
+INNER JOIN wp_postmeta AS surface
+ON
+    surface.post_id = post.ID AND surface.meta_key = 'surface'
+INNER JOIN wp_postmeta AS TYPE
+ON TYPE
+    .post_id = post.ID AND TYPE.meta_key = 'type'
+WHERE
+    post.post_author = :hotelId";
+        $whereClauses = [];
+        if ( isset( $args['surface']['min'] ))
+            $whereClauses[] = 'surface.meta_value >= :surfaceMin';
+        if ( isset( $args['surface']['max'] ))
+            $whereClauses[] = 'surface.meta_value <= :surfaceMax';
+        if ( isset( $args['price']['min'] ) )
+            $whereClauses[] = 'price.meta_value >= :priceMin';
+        if ( isset( $args['price']['max'] ))
+            $whereClauses[] = 'price.meta_value <= :priceMax';
+        if ( isset( $args['rooms'] ))
+            $whereClauses[] = 'room.meta_value = :room';
+        if ( isset( $args['bathRooms'] ) )
+            $whereClauses[] = 'bathroom.meta_value = :bathroom';
+//    if ( isset( $args['types'] ) && ! empty( $args['types'] ) )
+//        $whereClauses[] = 'type = :type';
+        if(count($whereClauses) > 0){
+            $query .= ' AND ' .implode(' AND ', $whereClauses);
+        }
+        $stmt = $this->getDB()->prepare($query);
+        $id = $hotel->getId();
+        $stmt->bindParam('hotelId', $id, PDO::PARAM_INT);
+        if ( isset( $args['surface']['min'] ))
+            $stmt->bindParam('surfaceMin', $args['surface']['min'], PDO::PARAM_INT);
+        if ( isset( $args['surface']['max'] ))
+            $stmt->bindParam('surfaceMax', $args['surface']['max'], PDO::PARAM_INT);
+        if ( isset( $args['price']['min'] ) )
+            $stmt->bindParam('priceMin', $args['price']['min'], PDO::PARAM_INT);
+        if ( isset( $args['price']['max'] ))
+            $stmt->bindParam('priceMax', $args['price']['max'], PDO::PARAM_INT);
+        if ( isset( $args['rooms'] ))
+            $stmt->bindParam('room', $args['rooms'], PDO::PARAM_INT);
+        if ( isset( $args['bathRooms'] ) )
+            $stmt->bindParam('bathroom', $args['bathRooms'], PDO::PARAM_INT);
+//      if ( isset( $args['types'] ) && ! empty( $args['types'] ) )
+//          $stmt->bindParam('type', $args['types']);
+        $stmt->execute();
+        $filteredRooms = $stmt->fetchAll();
 
-    //SELECT * FROM wp_posts WHERE post_author = :hotelId AND post_type = 'room'
-    $query = "SELECT post.ID as ID,
-                post.post_title as title, 
-                MIN(CAST(price.meta_value as FLOAT)) AS price, 
-                coverImage.meta_value as coverImage, 
-                CAST(room.meta_value as INTEGER) AS room, 
-                CAST(bathroom.meta_value as INTEGER) AS bathroom, 
-                CAST(surface.meta_value as INTEGER) AS surface, 
-                type.meta_value AS type 
-
-                FROM wp_posts AS post 
-                    
-                INNER JOIN wp_postmeta AS price ON price.post_id = post.ID AND price.meta_key = 'price' 
-                INNER JOIN wp_postmeta AS coverImage ON coverImage.post_id = post.ID AND coverImage.meta_key = 'coverImage' 
-                INNER JOIN wp_postmeta AS room ON room.post_id = post.ID AND room.meta_key = 'bedrooms_count' 
-                INNER JOIN wp_postmeta AS bathroom ON bathroom.post_id = post.ID AND bathroom.meta_key = 'bathrooms_count' 
-                INNER JOIN wp_postmeta AS surface ON surface.post_id = post.ID AND surface.meta_key = 'surface' 
-                INNER JOIN wp_postmeta AS type ON type.post_id = post.ID AND type.meta_key = 'type' 
-                
-                WHERE post.post_author = :hotelId ";
-
-    $whereClauses = [];
-
-    if ( isset( $args['surface']['min'] ))
-        $whereClauses[] = 'surface >= :surfaceMin';
-
-    if ( isset( $args['surface']['max'] ))
-        $whereClauses[] = 'surface <= :surfaceMax';
-
-    if ( isset( $args['price']['min'] ) )
-        $whereClauses[] = 'price >= :priceMin';
-
-    if ( isset( $args['price']['max'] ))
-        $whereClauses[] = 'price <= :priceMax';
-
-    if ( isset( $args['rooms'] ))
-        $whereClauses[] = 'room = :room';
-
-    if ( isset( $args['bathRooms'] ) )
-        $whereClauses[] = 'bathroom = :bathroom';
-
-    if ( isset( $args['types'] ) && ! empty( $args['types'] ) )
-        $whereClauses[] = 'type = :type';
-
-    if(count($whereClauses) > 0){
-        $query .= ' AND ' .implode(' AND ', $whereClauses);
+        // Si aucune chambre ne correspond aux critères, alors on déclenche une exception pour retirer l'hôtel des résultats finaux de la méthode list().
+        if ( count( $filteredRooms ) < 1)
+            throw new FilterException( "Aucune chambre ne correspond aux critères" );
+        $filteredRooms = $filteredRooms[0];
+        $cheapestRoom = (new RoomEntity())
+            ->setId($filteredRooms[0])
+            ->setTitle($filteredRooms[1])
+            ->setPrice($filteredRooms[2])
+            ->setCoverImageUrl(strval($filteredRooms[3]))
+            ->setBedRoomsCount($filteredRooms[4])
+            ->setBathRoomsCount($filteredRooms[5])
+            ->setSurface($filteredRooms[6])
+            ->setType($filteredRooms[7]);
+        $timer->endTimer('getCheapestRoom', $timerId);
+        return $cheapestRoom;
     }
-
-    $stmt = $this->getDB()->prepare($query);
-
-    $id = $hotel->getId();
-    $stmt->bindParam('hotelId', $id, PDO::PARAM_INT);
-
-      if ( isset( $args['surface']['min'] ))
-          $stmt->bindParam('surfaceMin', $args['surface']['min'], PDO::PARAM_INT);
-
-      if ( isset( $args['surface']['max'] ))
-          $stmt->bindParam('surfaceMax', $args['surface']['max'], PDO::PARAM_INT);
-
-      if ( isset( $args['price']['min'] ) )
-          $stmt->bindParam('priceMin', $args['price']['min'], PDO::PARAM_INT);
-
-      if ( isset( $args['price']['max'] ))
-          $stmt->bindParam('priceMax', $args['price']['max'], PDO::PARAM_INT);
-
-      if ( isset( $args['rooms'] ))
-          $stmt->bindParam('room', $args['rooms'], PDO::PARAM_INT);
-
-      if ( isset( $args['bathRooms'] ) )
-          $stmt->bindParam('bathroom', $args['bathRooms'], PDO::PARAM_INT);
-
-      if ( isset( $args['types'] ) && ! empty( $args['types'] ) )
-          $stmt->bindParam('type', $args['types']);
-
-      dump($stmt);
-      die();
-    $stmt->execute();
-
-
-    $filteredRooms = $stmt->fetchAll();
-
-    // Si aucune chambre ne correspond aux critères, alors on déclenche une exception pour retirer l'hôtel des résultats finaux de la méthode list().
-    if ( count( $filteredRooms ) < 1 )
-      throw new FilterException( "Aucune chambre ne correspond aux critères" );
-    
-    $filteredRooms = $filteredRooms[0];
-    $cheapestRoom = (new RoomEntity())
-        ->setId($filteredRooms[0])
-        ->setTitle($filteredRooms[1])
-        ->setPrice($filteredRooms[2])
-        ->setCoverImageUrl(strval($filteredRooms[3]))
-        ->setBedRoomsCount($filteredRooms[4])
-        ->setBathRoomsCount($filteredRooms[5])
-        ->setSurface($filteredRooms[6])
-        ->setType($filteredRooms[7]);
-
-
-      $timer->endTimer('getCheapestRoom', $timerId);
-    return $cheapestRoom;
-  }
   
   
   /**
