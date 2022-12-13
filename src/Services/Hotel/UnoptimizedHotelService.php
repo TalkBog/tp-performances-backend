@@ -73,18 +73,22 @@ class UnoptimizedHotelService extends AbstractHotelService {
   protected function getMetas ( HotelEntity $hotel ) : array {
       $timer = Timers::getInstance();
       $timerId = $timer->startTimer('getMetas');
+      $stmt = $this->getDB()->prepare("SELECT meta_key, meta_value FROM wp_usermeta WHERE wp_usermeta.user_id = :userId GROUP BY meta_key;");
+      $stmt -> execute(['userId' => $hotel->getId()]);
+      $hotelMeta = $stmt ->fetchAll(PDO::FETCH_COLUMN|PDO::FETCH_UNIQUE);
+
     $metaDatas = [
       'address' => [
-        'address_1' => $this->getMeta( $hotel->getId(), 'address_1' ),
-        'address_2' => $this->getMeta( $hotel->getId(), 'address_2' ),
-        'address_city' => $this->getMeta( $hotel->getId(), 'address_city' ),
-        'address_zip' => $this->getMeta( $hotel->getId(), 'address_zip' ),
-        'address_country' => $this->getMeta( $hotel->getId(), 'address_country' ),
+        'address_1' => $hotelMeta['address_1'],
+        'address_2' => $hotelMeta['address_2'],
+        'address_city' => $hotelMeta['address_city'],
+        'address_zip' => $hotelMeta['address_zip'],
+        'address_country' => $hotelMeta['address_country'],
       ],
-      'geo_lat' =>  $this->getMeta( $hotel->getId(), 'geo_lat' ),
-      'geo_lng' =>  $this->getMeta( $hotel->getId(), 'geo_lng' ),
-      'coverImage' =>  $this->getMeta( $hotel->getId(), 'coverImage' ),
-      'phone' =>  $this->getMeta( $hotel->getId(), 'phone' ),
+      'geo_lat' =>  $hotelMeta['geo_lat'],
+      'geo_lng' =>  $hotelMeta['geo_lng'],
+      'coverImage' =>  $hotelMeta['coverImage'],
+      'phone' =>  $hotelMeta['phone'],
     ];
       $timer->endTimer('getMetas', $timerId);
     return $metaDatas;
@@ -285,7 +289,7 @@ class UnoptimizedHotelService extends AbstractHotelService {
             ->setBathRoomsCount(intval($filteredRooms['bathrooms']))
             ->setSurface(intval($filteredRooms['surfaces']))
             ->setType($filteredRooms['TYPES']);
-        
+
         $timer->endTimer('getCheapestRoom', $timerId);
         return $cheapestRoom;
     }

@@ -80,12 +80,12 @@ SELECT * FROM wp_posts WHERE post_author = :hotelId AND post_type = 'room'
 
 
 
-## Question 5 : Réduction du nombre de requêtes SQL pour `METHOD`
+## Question 5 : Réduction du nombre de requêtes SQL pour `getMetas()`
 
 |                              | **Avant** | **Après** |
 |------------------------------|-----------|-----------|
-| Nombre d'appels de `getDB()` | NOMBRE    | NOMBRE    |
- | Temps de `METHOD`            | TEMPS     | TEMPS     |
+| Nombre d'appels de `getDB()` | 2201      | 601       |
+ | Temps de `getMetas()`        | 1.58 s    | 232.43 ms |
 
 ## Question 6 : Création d'un service basé sur une seule requête SQL
 
