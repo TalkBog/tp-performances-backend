@@ -11,7 +11,7 @@ use App\Services\Hotel\UnoptimizedHotelService;
 
 require_once __DIR__ . "/vendor/autoload.php";
 
-$hotelService = OneRequestHotelService::getInstance();
+$hotelService = UnoptimizedHotelService::getInstance();
 
 $controller = new HotelListController( $hotelService );
 $controller->render();

@@ -223,22 +223,22 @@ HAVING distanceKM <= 30;
 
 **Indexes ajoutés**
 
-- `wp_users` : `ID`
-- `wp_usermeta` : `meta_key`
-- `wp_postmeta` : `meta_key`
+- `wp_posts` : `post_author`
+- `wp_usermeta` : `meta_value`
+- `wp_postmeta` : `meta_value`
 
 **Requête SQL d'ajout des indexes** 
 
 ```sql
-CREATE INDEX wp_users:ID ON wp_users (ID);
-CREATE INDEX wp_usermeta:meta_key ON wp_usermeta (meta_key);
-CREATE INDEX wp_postmeta:meta_key ON wp_postmeta (meta_key);
+CREATE UNIQUE INDEX post_author ON wp_posts (post_author, ID);
+CREATE UNIQUE INDEX Meta_value ON wp_usermeta (user_id, meta_key, meta_value);
+CREATE UNIQUE INDEX Meta_value ON wp_postmeta (post_id, meta_key, meta_value);
 ```
 
 | Temps de chargement de la page | Sans filtre | Avec filtres |
 |--------------------------------|-------------|--------------|
-| `UnoptimizedService`           | TEMPS       | TEMPS        |
-| `OneRequestService`            | TEMPS       | TEMPS        |
+| `UnoptimizedService`           | 1.25 s      | 0.69 s       |
+| `OneRequestService`            | 1.08 s      | 0.64 s       |
 [Filtres à utiliser pour mesurer le temps de chargement](http://localhost/?types%5B%5D=Maison&types%5B%5D=Appartement&price%5Bmin%5D=200&price%5Bmax%5D=230&surface%5Bmin%5D=130&surface%5Bmax%5D=150&rooms=5&bathRooms=5&lat=46.988708&lng=3.160778&search=Nevers&distance=30)
 
 

@@ -59,6 +59,7 @@ class OneRequestHotelService extends AbstractHotelService
                                           )
                                   )
                           ) AS distanceKM,";
+
         $query .= "coverImage.meta_value AS coverImage,
                      COUNT(rating.meta_value) AS countRating,
                      AVG(rating.meta_value) AS rating,
@@ -215,6 +216,7 @@ class OneRequestHotelService extends AbstractHotelService
             $stmt->bindParam("distance", $args['distance'], PDO::PARAM_INT);
         }
 
+
         return $stmt;
     }
 
@@ -291,6 +293,7 @@ class OneRequestHotelService extends AbstractHotelService
         $hotels = [];
         foreach ( $stmt->fetchAll( PDO::FETCH_ASSOC ) as $hotel ) {
             try {
+
                 $hotels[] = $this->convertEntityFromArray( $hotel );
             } catch ( FilterException ) {
                 // Des FilterException peuvent être déclenchées pour exclure certains hotels des résultats
