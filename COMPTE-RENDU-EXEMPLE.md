@@ -258,31 +258,152 @@ CREATE UNIQUE INDEX Meta_value ON wp_postmeta (post_id, meta_key, meta_value);
 ### Table `hotels` (200 lignes)
 
 ```SQL
--- REQ SQL CREATION TABLE
+CREATE TABLE `hotels` (
+                       `id` int(11) NOT NULL AUTO_INCREMENT,
+                       `name` varchar(255) NOT NULL,
+                       `mail` varchar(255) NOT NULL,
+                       `address_1` varchar(255) NOT NULL,
+                       `address_2` varchar(255) NOT NULL,
+                       `address_city` varchar(255) NOT NULL,
+                       `address_zip` varchar(255) NOT NULL,
+                       `address_country` varchar(255) NOT NULL,
+                       `phone` varchar(255) NOT NULL,
+                       `lat` varchar(255) NOT NULL,
+                       `lng` varchar(255) NOT NULL,
+                       `coverImage` varchar(255) NOT NULL,
+                       PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
 ```
 
 ```SQL
--- REQ SQL INSERTION DONNÉES DANS LA TABLE
+INSERT INTO hotels (
+ SELECT
+  USER.ID AS id,
+  USER.display_name AS name,
+  USER.user_email AS mail,
+  address1.meta_value AS address_1,
+  address2.meta_value AS address_2,
+  addressCity.meta_value AS address_city,
+  addressZip.meta_value AS address_zip,
+  addressCountry.meta_value AS address_country,
+  phone.meta_value AS phone,
+  lat.meta_value AS lat,
+  lng.meta_value AS lng,
+  coverImage.meta_value AS coverImage
+
+ FROM wp_users AS USER
+    
+    INNER JOIN wp_usermeta AS address1
+ ON USER.ID = address1.user_id AND address1.meta_key = "address_1"
+
+  INNER JOIN wp_usermeta AS address2
+  ON USER.ID = address2.user_id AND address2.meta_key = "address_2"
+
+  INNER JOIN wp_usermeta AS addressCity
+  ON USER.ID = addressCity.user_id AND addressCity.meta_key = "address_city"
+
+  INNER JOIN wp_usermeta AS addressZip
+  ON USER.ID = addressZip.user_id AND addressZip.meta_key = "address_zip"
+
+  INNER JOIN wp_usermeta AS addressCountry
+  ON USER.ID = addressCountry.user_id AND addressCountry.meta_key = "address_country"
+
+  INNER JOIN wp_usermeta AS phone
+  ON USER.ID = phone.user_id AND phone.meta_key = "phone"
+
+  INNER JOIN wp_usermeta AS lat
+  ON USER.ID = lat.user_id AND lat.meta_key = "geo_lat"
+
+  INNER JOIN wp_usermeta AS lng
+  ON USER.ID = lng.user_id AND lng.meta_key = "geo_lng"
+
+  INNER JOIN wp_usermeta AS coverImage
+  ON USER.ID = coverImage.user_id AND coverImage.meta_key = "coverImage"
+
+ GROUP BY USER.ID)
 ```
 
 ### Table `rooms` (1 200 lignes)
 
 ```SQL
--- REQ SQL CREATION TABLE
+CREATE TABLE `rooms` (
+                      `id` int(11) NOT NULL AUTO_INCREMENT,
+                      `id_hotel` int(11) NOT NULL,
+                      `title` varchar(255) NOT NULL,
+                      `price` varchar(255) NOT NULL,
+                      `surface` varchar(255) NOT NULL,
+                      `room` varchar(255) NOT NULL,
+                      `bathroom` varchar(255) NOT NULL,
+                      `coverImage` varchar(255) NOT NULL,
+                      `type` varchar(255) NOT NULL,
+                      PRIMARY KEY (`id`),
+                      KEY `FK_id_hotel` (`id_hotel`),
+                      CONSTRAINT `FK_id_hotel` FOREIGN KEY (`id_hotel`) REFERENCES `hotels` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
 ```
 
 ```SQL
--- REQ SQL INSERTION DONNÉES DANS LA TABLE
+-- Ne fonctionne pas #1366 - Incorrect integer value: 'https://source.unsplash.com/category/objects/640x480' for column `tp`.`rooms`.`id_hotel` at row 1
+INSERT INTO rooms (
+ SELECT
+
+  bathroom.meta_value AS bathroom,
+  coverImage.meta_value AS coverImage,
+  post.ID AS id,
+  post.post_author AS id_hotel,
+  price.meta_value AS price,
+  room.meta_value AS room,
+  surface.meta_value AS surface,
+  post.post_title AS title,
+  TYPE.meta_value AS type
+
+ FROM wp_posts AS post
+
+       INNER JOIN wp_postmeta AS price
+                  ON price.post_id = post.ID AND price.meta_key = 'price'
+
+       INNER JOIN wp_postmeta AS room
+                  ON room.post_id = post.ID AND room.meta_key = 'bedrooms_count'
+
+       INNER JOIN wp_postmeta AS bathroom
+                  ON bathroom.post_id = post.ID AND bathroom.meta_key = 'bathrooms_count'
+
+       INNER JOIN wp_postmeta AS surface
+                  ON surface.post_id = post.ID AND surface.meta_key = 'surface'
+
+       INNER JOIN wp_postmeta AS TYPE
+                  ON TYPE.post_id = post.ID AND TYPE.meta_key = 'type'
+
+       INNER JOIN wp_postmeta AS coverImage
+                  ON coverImage.post_id = post.ID AND coverImage.meta_key = 'coverImage'
+
+ GROUP BY post.post_author)
 ```
 
 ### Table `reviews` (19 700 lignes)
 
 ```SQL
--- REQ SQL CREATION TABLE
+CREATE TABLE `reviews` (
+                        `id` int(11) NOT NULL AUTO_INCREMENT,
+                        `id_post` int(11) NOT NULL,
+                        `rating` int(11) NOT NULL,
+                        PRIMARY KEY (`id`),
+                        KEY `FK_id_post` (`id_post`),
+                        CONSTRAINT `FK_id_post` FOREIGN KEY (`id_post`) REFERENCES `rooms` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
 ```
 
 ```SQL
--- REQ SQL INSERTION DONNÉES DANS LA TABLE
+-- ne fonctionne pas #1452 - Cannot add or update a child row: a foreign key constraint fails (`tp`.`reviews`, CONSTRAINT `FK_id_post` FOREIGN KEY (`id_post`) REFERENCES `rooms` (`id`) ON DELETE CASCADE ON UPDATE CASCADE)
+INSERT INTO `reviews`(
+ SELECT
+  rating.meta_id AS id,
+  rating.post_id AS id_post,
+  rating.meta_value AS rating
+
+ FROM wp_postmeta AS rating
+
+ WHERE rating.meta_key = "rating")
 ```
 
 
