@@ -91,44 +91,45 @@ SELECT * FROM wp_posts WHERE post_author = :hotelId AND post_type = 'room'
 
 |                              | **Avant** | **Après** |
 |------------------------------|-----------|-----------|
-| Nombre d'appels de `getDB()` | NOMBRE    | NOMBRE    |
-| Temps de chargement global   | TEMPS     | TEMPS     |
+| Nombre d'appels de `getDB()` | 601       | 1         |
+| Temps de chargement global   | 25.5 s    | 4.82 s    |
 
 **Requête SQL**
 
 ```SQL
 SELECT
- USER.ID AS user_id,
- USER.display_name AS user_name,
- address1.meta_value AS address_1,
- address2.meta_value AS address_2,
- addressCity.meta_value AS address_city,
- addressZip.meta_value AS address_zip,
- addressCountry.meta_value AS address_country,
- phone.meta_value AS phone,
- lat.meta_value AS latitude,
- lng.meta_value AS longitude,
- 111.111 * DEGREES(
-         ACOS(
-                 LEAST(
-                         1.0,
-                         COS(RADIANS(lat.meta_value)) * COS(RADIANS(46.988708)) * COS(
-                                 RADIANS(lng.meta_value - 3.160778)
-                          ) + SIN(RADIANS(lat.meta_value)) * SIN(RADIANS(46.988708))
-                  )
-          )
-  ) AS distanceKM,
- coverImage.meta_value AS coverImage,
- COUNT(rating.meta_value) AS countRating,
- AVG(rating.meta_value) AS rating,
- cheapestRoom.ID AS CRID,
- cheapestRoom.title AS CRTitle,
- cheapestRoom.price AS CRPrice,
- cheapestRoom.coverImage AS CRCoverImage,
- cheapestRoom.room AS CRRoom,
- cheapestRoom.bathroom AS CRBathroom,
- cheapestRoom.surface AS CRSurface,
- cheapestRoom.TYPE AS CRType
+    USER.ID AS user_id,
+    USER.display_name AS user_name,
+    USER.user_email AS email,
+    address1.meta_value AS address_1,
+    address2.meta_value AS address_2,
+    addressCity.meta_value AS address_city,
+    addressZip.meta_value AS address_zip,
+    addressCountry.meta_value AS address_country,
+    phone.meta_value AS phone,
+    lat.meta_value AS latitude,
+    lng.meta_value AS longitude,
+    111.111 * DEGREES(
+            ACOS(
+                    LEAST(
+                            1.0,
+                            COS(RADIANS(lat.meta_value)) * COS(RADIANS(46.988708)) * COS(
+                                    RADIANS(lng.meta_value - 3.160778)
+                             ) + SIN(RADIANS(lat.meta_value)) * SIN(RADIANS(46.988708))
+                     )
+             )
+     ) AS distanceKM,
+    coverImage.meta_value AS coverImage,
+    COUNT(rating.meta_value) AS countRating,
+    AVG(rating.meta_value) AS rating,
+    cheapestRoom.ID AS CRID,
+    cheapestRoom.title AS CRTitle,
+    cheapestRoom.price AS CRPrice,
+    cheapestRoom.coverImage AS CRCoverImage,
+    cheapestRoom.room AS CRRoom,
+    cheapestRoom.bathroom AS CRBathroom,
+    cheapestRoom.surface AS CRSurface,
+    cheapestRoom.TYPE AS CRType
 
 
 FROM wp_users AS USER
@@ -138,48 +139,48 @@ INNER JOIN wp_posts AS post
 
 INNER JOIN wp_usermeta AS address1
     ON USER.ID = address1.user_id AND address1.meta_key = "address_1"
-        
+
 INNER JOIN wp_usermeta AS address2
     ON USER.ID = address2.user_id AND address2.meta_key = "address_2"
-        
+
 INNER JOIN wp_usermeta AS addressCity
     ON USER.ID = addressCity.user_id AND addressCity.meta_key = "address_city"
-        
+
 INNER JOIN wp_usermeta AS addressZip
     ON USER.ID = addressZip.user_id AND addressZip.meta_key = "address_zip"
-        
+
 INNER JOIN wp_usermeta AS addressCountry
     ON USER.ID = addressCountry.user_id AND addressCountry.meta_key = "address_country"
 
 INNER JOIN wp_usermeta AS phone
     ON USER.ID = phone.user_id AND phone.meta_key = "phone"
-        
+
 INNER JOIN wp_usermeta AS lat
     ON USER.ID = lat.user_id AND lat.meta_key = "geo_lat"
-        
+
 INNER JOIN wp_usermeta AS lng
     ON USER.ID = lng.user_id AND lng.meta_key = "geo_lng"
-        
+
 INNER JOIN wp_usermeta AS coverImage
     ON USER.ID = coverImage.user_id AND coverImage.meta_key = "coverImage"
-        
+
 INNER JOIN wp_postmeta AS rating
     ON post.ID = rating.post_id AND rating.meta_key = "rating" AND post.post_type = "review"
-        
+
 INNER JOIN (
     SELECT
         post.post_author AS post_author,
         post.ID AS ID,
         post.post_title AS title,
         MIN(
-            CAST(price.meta_value AS DECIMAL)
+        CAST(price.meta_value AS DECIMAL)
         ) AS price,
         coverImage.meta_value AS coverImage,
         room.meta_value AS room,
         bathroom.meta_value AS bathroom,
         surface.meta_value AS surface,
         TYPE.meta_value AS TYPE
- 
+
     FROM wp_posts AS post
 
     INNER JOIN wp_postmeta AS price
@@ -210,12 +211,12 @@ INNER JOIN (
         AND surface.meta_value <= 150
         AND TYPE.meta_value IN ("Maison", "Appartement")
 
-        GROUP BY post.post_author
+    GROUP BY post.post_author
     ) AS cheapestRoom
         ON USER.ID = cheapestRoom.post_author
 
-    GROUP BY USER.ID
-    HAVING distanceKM < 30;
+GROUP BY USER.ID
+HAVING distanceKM <= 30;
 ```
 
 ## Question 7 : ajout d'indexes SQL

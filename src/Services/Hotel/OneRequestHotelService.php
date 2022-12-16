@@ -39,6 +39,7 @@ class OneRequestHotelService extends AbstractHotelService
         $query = "SELECT
                      USER.ID AS user_id,
                      USER.display_name AS user_name,
+                     USER.user_email AS email,
                      address1.meta_value AS address_1,
                      address2.meta_value AS address_2,
                      addressCity.meta_value AS address_city,
@@ -52,9 +53,9 @@ class OneRequestHotelService extends AbstractHotelService
                                  ACOS(
                                          LEAST(
                                                  1.0,
-                                                 COS(RADIANS(lat.meta_value)) * COS(RADIANS(46.988708)) * COS(
-                                                         RADIANS(lng.meta_value - 3.160778)
-                                                  ) + SIN(RADIANS(lat.meta_value)) * SIN(RADIANS(46.988708))
+                                                 COS(RADIANS(lat.meta_value)) * COS(RADIANS(:lat)) * COS(
+                                                         RADIANS(lng.meta_value - :lng)
+                                                  ) + SIN(RADIANS(lat.meta_value)) * SIN(RADIANS(:lat))
                                           )
                                   )
                           ) AS distanceKM,";
@@ -140,7 +141,7 @@ class OneRequestHotelService extends AbstractHotelService
                             ON TYPE.post_id = post.ID AND TYPE.meta_key = 'type'
                         
                         WHERE 
-                            post.post_author = :hotelId AND post.post_type = 'room' ";
+                            post.post_type = 'room' ";
 
         $whereClauses = [];
         if ( isset( $args['surface']['min'] ))
@@ -162,7 +163,7 @@ class OneRequestHotelService extends AbstractHotelService
             $whereClauses[] = 'bathroom.meta_value >= :bathroom';
 
         if ( isset( $args['types'] ) && ! empty( $args['types'] ) ) {
-            $sentence = 'TYPES.meta_value IN(';
+            $sentence = 'TYPE.meta_value IN(';
             for ($i = 0; $i < count($args['types']); $i++) {
                 $sentence .= "'" . $args['types'][$i] . "'";
 
@@ -182,13 +183,39 @@ class OneRequestHotelService extends AbstractHotelService
                     ) AS cheapestRoom
                     ON USER.ID = cheapestRoom.post_author
             
-                    GROUP BY USER.ID";
+                    GROUP BY USER.ID ";
 
         if(isset($args['lat']) && isset($args['lng']) && isset($args['distance'])){
-            $query .= "HAVING distanceKM < 30;";
+            $query .= "HAVING distanceKM <= :distance ;";
         }
 
-        return $this->getDB()->prepare($query);
+        $stmt = $this->getDB()->prepare($query);
+
+        if ( isset( $args['surface']['min'] ))
+            $stmt->bindParam('surfaceMin', $args['surface']['min'], PDO::PARAM_INT);
+
+        if ( isset( $args['surface']['max'] ))
+            $stmt->bindParam('surfaceMax', $args['surface']['max'], PDO::PARAM_INT);
+
+        if ( isset( $args['price']['min'] ) )
+            $stmt->bindParam('priceMin', $args['price']['min'], PDO::PARAM_INT);
+
+        if ( isset( $args['price']['max'] ))
+            $stmt->bindParam('priceMax', $args['price']['max'], PDO::PARAM_INT);
+
+        if ( isset( $args['rooms'] ))
+            $stmt->bindParam('room', $args['rooms'], PDO::PARAM_INT);
+
+        if ( isset( $args['bathRooms'] ) )
+            $stmt->bindParam('bathroom', $args['bathRooms'], PDO::PARAM_INT);
+
+        if(isset($args['lat']) && isset($args['lng']) && isset($args['distance'])) {
+            $stmt->bindParam('lat', $args['lat'],PDO::PARAM_STR);
+            $stmt->bindParam('lng', $args['lng'], PDO::PARAM_STR);
+            $stmt->bindParam("distance", $args['distance'], PDO::PARAM_INT);
+        }
+
+        return $stmt;
     }
 
     /**
@@ -197,6 +224,41 @@ class OneRequestHotelService extends AbstractHotelService
      * @throws Exception
      */
     protected function convertEntityFromArray ( array $args ) : HotelEntity {
+
+        $cheapestRoom = (new RoomEntity())
+            ->setId($args['CRID'])
+            ->setPrice($args['CRPrice'])
+            ->setSurface($args['CRSurface'])
+            ->setTitle($args['CRTitle'])
+            ->setType($args['CRType'])
+            ->setBathRoomsCount($args['CRBathroom'])
+            ->setBedRoomsCount($args['CRRoom'])
+            ->setCoverImageUrl($args['CRCoverImage']);
+
+        $hotel =(new HotelEntity())
+            ->setId($args['user_id'])
+            ->setAddress([
+            'address_1' => $args['address_1'],
+            'address_2' => $args['address_2'],
+            'address_city' => $args['address_city'],
+            'address_zip' => $args['address_zip'],
+            'address_country' => $args['address_country'],
+        ])
+            ->setCheapestRoom($cheapestRoom)
+            ->setGeoLat($args['latitude'])
+            ->setGeoLng($args['longitude'])
+            ->setImageUrl($args['coverImage'])
+            ->setMail($args['email'])
+            ->setName($args['user_name'])
+            ->setPhone($args['phone'])
+            ->setRating(round($args['rating']))
+            ->setRatingCount($args['countRating']);
+
+        if(isset($args['lat']) && isset($args['lng']) && isset($args['distance']))
+            $hotel->setDistance($args['distanceKM']);
+
+        return  $hotel;
+
 
     }
 
@@ -220,6 +282,19 @@ class OneRequestHotelService extends AbstractHotelService
      */
     public function list(array $args = []): array
     {
-        // TODO: Implement list() method.
+        $stmt = $this->buildQuery($args);
+        $stmt->execute();
+
+        $hotels = [];
+        foreach ( $stmt->fetchAll( PDO::FETCH_ASSOC ) as $hotel ) {
+            try {
+                $hotels[] = $this->convertEntityFromArray( $hotel );
+            } catch ( FilterException ) {
+                // Des FilterException peuvent être déclenchées pour exclure certains hotels des résultats
+            }
+        }
+
+
+        return $hotels;
     }
 }
