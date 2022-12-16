@@ -2,45 +2,45 @@ Vous pouvez utiliser ce [GSheets](https://docs.google.com/spreadsheets/d/13Hw27U
 
 ## Question 2 : Utilisation Server Timing API
 
-**Temps de chargement initial de la page** : TEMPS
+**Temps de chargement initial de la page** : 39.1 s
 
 **Choix des méthodes à analyser** :
 
-- `ConverEntityFromArray` 29.71s
-- `getCheapestRoom` 16.40s
-- `getMetas` 4.25s
+- `getReviews` 9.74s
+- `getCheapestRoom` 17.33s
+- `getMeta` 4.80s
 
 
 
 ## Question 3 : Réduction du nombre de connexions PDO
 
-**Temps de chargement de la page** : 29.8s
+**Temps de chargement de la page** : 33.6s
 
 **Temps consommé par `getDB()`** 
 
-- **Avant** 1.29s
+- **Avant** 1.55s
 
-- **Après** 2.76 ms
+- **Après** 2.47 ms
 
 
 ## Question 4 : Délégation des opérations de filtrage à la base de données
 
 **Temps de chargement globaux** 
 
-- **Avant** TEMPS
+- **Avant** 33.6s
 
-- **Après** TEMPS
+- **Après**19 s
 
 
-#### Amélioration de la méthode `getMeta` et donc de la méthode `getMetas` :
+#### Amélioration de la méthode `getMeta()` et donc de la méthode `getMetas()` :
 
-- **Avant** TEMPS
+- **Avant** 4.80 s
 
 ```sql
 SELECT * FROM wp_usermeta
 ```
 
-- **Après** TEMPS
+- **Après** 3.29s
 
 ```sql
 SELECT * FROM wp_usermeta WHERE user_id = :userId AND meta_key = :key
@@ -48,34 +48,101 @@ SELECT * FROM wp_usermeta WHERE user_id = :userId AND meta_key = :key
 
 
 
-#### Amélioration de la méthode `METHOD` :
+#### Amélioration de la méthode `getCheapestRoom()` :
 
-- **Avant** TEMPS
+- **Avant** 17.33 s
 
 ```sql
 SELECT * FROM wp_posts WHERE post_author = :hotelId AND post_type = 'room'
 ```
 
-- **Après** 12.50s
+- **Après** 10.66s
 
 ```sql
--- NOUVELLE REQ SQL
+SELECT
+  post.post_author AS hotelId,
+  post.ID AS ID,
+  post.post_title AS title,
+  MIN(
+          CAST(price.meta_value AS UNSIGNED)
+   ) AS prices,
+  coverImage.meta_value AS coverImages,
+  room.meta_value AS rooms,
+  bathroom.meta_value AS bathrooms,
+  surface.meta_value AS surfaces,
+  TYPES.meta_value AS TYPES,
+  latData.meta_value AS lat,
+  lngData.meta_value AS lng,
+  111.111 * DEGREES(
+          ACOS(
+                  LEAST(
+                          1.0,
+                          COS(RADIANS(latData.meta_value)) * COS(RADIANS(:latitude)) * COS(
+                                  RADIANS(lngData.meta_value - :longitude)
+                           ) + SIN(RADIANS(latData.meta_value)) * SIN(RADIANS(:latitude))
+                   )
+           )
+   ) AS distanceKM
+
+FROM wp_posts AS post
+
+INNER JOIN wp_postmeta AS price
+    ON price.post_id = post.ID AND price.meta_key = 'price'
+      
+INNER JOIN wp_postmeta AS coverImage
+    ON coverImage.post_id = post.ID AND coverImage.meta_key = 'coverImage'
+      
+INNER JOIN wp_postmeta AS room
+    ON room.post_id = post.ID AND room.meta_key = 'bedrooms_count'
+      
+INNER JOIN wp_postmeta AS bathroom
+    ON bathroom.post_id = post.ID AND bathroom.meta_key = 'bathrooms_count'
+      
+INNER JOIN wp_postmeta AS surface
+    ON surface.post_id = post.ID AND surface.meta_key = 'surface'
+      
+INNER JOIN wp_postmeta AS TYPES
+    ON TYPES.post_id = post.ID AND TYPES.meta_key = 'type'
+      
+INNER JOIN tp.wp_users AS USER
+    ON USER.ID = post.post_author
+        
+INNER JOIN tp.wp_usermeta AS latData
+    ON latData.user_id = USER.ID AND latData.meta_key = 'geo_lat'
+ 
+INNER JOIN tp.wp_usermeta AS lngData
+    ON lngData.user_id = USER.ID AND lngData.meta_key = 'geo_lng'
+
+WHERE
+    post.post_author = :hotelId 
+    AND post.post_type = 'room'
+    AND surface.meta_value >= :surfaceMin
+    AND surface.meta_value <= :surfaceMax
+    AND price.meta_value >= :priceMin
+    AND price.meta_value <= :priceMax
+    AND room.meta_value >= :room
+    AND bathroom.meta_value >= :bathroom
+    AND TYPES.meta_value IN (:types)
+
+GROUP BY post.post_author
+
+HAVING distanceKM < :distance;
 ```
 
 
 
-#### Amélioration de la méthode `METHOD` :
+#### Amélioration de la méthode `getReviews()` :
 
-- **Avant** TEMPS
+- **Avant** 9.74 s
 
 ```sql
--- REQ SQL DE BASE
+SELECT * FROM wp_posts, wp_postmeta WHERE wp_posts.post_author = :hotelId AND wp_posts.ID = wp_postmeta.post_id AND meta_key = 'rating' AND post_type = 'review'
 ```
 
-- **Après** TEMPS
+- **Après** 5.97 s
 
 ```sql
--- NOUVELLE REQ SQL
+SELECT meta_value FROM wp_posts JOIN wp_postmeta ON wp_posts.ID = wp_postmeta.post_id WHERE wp_posts.post_author = :hotelId AND meta_key = 'rating' AND post_type = 'review'
 ```
 
 
