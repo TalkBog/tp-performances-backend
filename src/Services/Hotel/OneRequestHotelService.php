@@ -254,8 +254,11 @@ class OneRequestHotelService extends AbstractHotelService
             ->setRating(round($args['rating']))
             ->setRatingCount($args['countRating']);
 
-        if(isset($args['lat']) && isset($args['lng']) && isset($args['distance']))
+        if(isset($args['distanceKM'])){
             $hotel->setDistance($args['distanceKM']);
+        }
+
+
 
         return  $hotel;
 

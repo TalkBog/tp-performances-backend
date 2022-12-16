@@ -223,14 +223,16 @@ HAVING distanceKM <= 30;
 
 **Indexes ajoutés**
 
-- `TABLE` : `COLONNES`
-- `TABLE` : `COLONNES`
-- `TABLE` : `COLONNES`
+- `wp_users` : `ID`
+- `wp_usermeta` : `meta_key`
+- `wp_postmeta` : `meta_key`
 
 **Requête SQL d'ajout des indexes** 
 
 ```sql
--- REQ SQL CREATION INDEXES
+CREATE INDEX wp_users:ID ON wp_users (ID);
+CREATE INDEX wp_usermeta:meta_key ON wp_usermeta (meta_key);
+CREATE INDEX wp_postmeta:meta_key ON wp_postmeta (meta_key);
 ```
 
 | Temps de chargement de la page | Sans filtre | Avec filtres |
